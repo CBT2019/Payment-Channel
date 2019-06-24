@@ -1,18 +1,19 @@
-﻿# An Efficient Unidirectional Micropayment Channel on Ethereum
+# An Efficient Unidirectional Micropayment Channel on Ethereum
 This is the accompanying code for the article "An Efficient Unidirectional Micropayment Channel on Ethereum". It consists of:
 
- -   Three Solidity contracts: $\texttt{EthWord}, \texttt{Pay50}, \texttt{PayMerkle}$.
--   Helper scripts in order to test $\texttt{PayMerkle}$ contract.
+ -   Four Solidity contracts: `EthWord`, `Pay50`, `PayMerkle`, `PayMerkleExtension`.
+-   Helper scripts in order to test `PayMerkle` contract.
 ## Test Case
+### Senario
+Assume that Alice runs an online service for which she accepts (`Ether`) payments on a micro-level (i.e., a very low fraction of
+`Ether` that costs less than one dollar). Bob is interested in that service and he wants to utilize it.
 ### requirements
+The following programs are required to test this senario:
  1. [Nodejs](https://nodejs.org/en/)
  2. [Web3](https://www.npmjs.com/package/web3)
  3. [ethereumjs-util](https://www.npmjs.com/package/ethereumjs-util)
-### Senario
-Assume that Alice runs an online service for which she accepts (Ether) payments on a micro-level (i.e., a very low fraction of
-Ether that costs less than one dollar). Bob is interested in that service and he wants to utilize it.
-#### Channel Setup
-Suppose that Bob estimates the number of maximum payments he is willing to make is `4096` with a minimum unit of payments of `1 Wei`. He create a Merkle Tree with number of leaves equal to `channelCapacity = 4096` by running  the following code on Nodejs console.
+#### Channel Setup (Running by Bob)
+Suppose that Bob estimates the number of maximum payments he is willing to make is `4096` with a minimum unit of payments of `1 Wei`. He create a Merkle Tree with number of leaves equal to `channelCapacity = 4096` by executing  the following code on his Nodejs console.
 
    ```js
 const { MerkleTree } = require('../helpers/merkletree.js');
@@ -37,21 +38,41 @@ const treeRoot = merkleTree.getHexRoot();
 console.log("seed : " + bufferToHex(seed));
 console.log("Tree Root : " + treeRoot);
 ```
-### Channel Deployment
-Bob deploys a smart contract $SC$ on Ethereum to act as a trusted third party that holds Bob's balance and settle the final payment to Alice. To deploy $SC$, Bob has to specify the following parameters to $SC$'s constructor that controls the payment channel between him and Alice:
-    Alice's address $A_{adr}$ on Ethereum.}
-    \item{A timeout value $T_{out}$ before the channel is closed.}
-    \item{The root $r$ of the Merkle tree $MT$.}
-\end{enumerate}
-Additionally, Bob has to send an amount $balance = n \times u$  \texttt{ether} to $SC$ to be held in escrow and pay Alice when she submits a valid Merkle proof.
+### Channel Deployment (Running by Bob)
+Bob deploys `PayMerkle` smart contract on Ethereum to act as a trusted third party.  The mart contract constructor parameters  are:
+1.  Alice's address on Ethereum.
+2. A timeout value before the channel is closed.
+3. The root of the Merkle tree `treeRoot`.
 
-### close
+Also, Bob has to send the  amount of  `4096 Wei` to the smart contract to be held in escrow and pay Alice when she submits a valid Merkle proof.
+
+### Off-chain Payments (Running by Bob and Alice)
+Alice and Bob are performing transactions off-chain. Every time Bob wants to utilize Alice's service, he sends her a new Merkle proof `proof` for an amount of `i` of `Wei`. To obtain the Merkle proof,   he executes the following code on his previously opened Nodejs console:
 ```js
-const claimedValue = 1000;
-const claimedLeaf = leaves[claimedValue - 1];
+const claimedLeaf = leaves[i - 1];
+const claimedValue = claimedLeaf.slice(0,66);
+const randomValue = '0x'+claimedLeaf.slice(66);
 const proof = merkleTree.getHexProof(claimedLeaf);
-const claimedLeaf.slice(0,66)
-const '0x'+claimedLeaf.slice(66)
 ```
+Then, Bob sends the values of `claimedValue, randomValue, proof` to Alice.  From her side, she verifies that `claimedValue||randomValue` is a part of the Merkle tree depolyed in the smart contract by calls `VerifyMerkleProof` function on her Nodejs console, and based on the output she decides to accept or reject.
+```js
+const { keccak256, bufferToHex } = require('ethereumjs-util');
+function VerifyMerkleProof(_claimedValue, _randomValue, _proof, _treeRoot) {
+	let node = bufferToHex(keccak256(_claimedValue + _randomValue.slice(2)));
+        for (i = 0; i < _proof.length; i++) {
+          let proofElement = _proof[i];
+          if (node < proofElement)
+            node = bufferToHex(keccak256(node + proofElement.slice(2)));
+          else
+            node = bufferToHex(keccak256(proofElement + node.slice(2)));
+          }
+         if (node == treeRoot)
+	    return true;
+	 else
+	    return false;
+     }  
 
-
+console.log(VerifyMerkleProof(claimedValue, randomValue, proof, treeRoot))  
+``` 
+### Channel Close (Runing by Alice)
+Once, Alice and Bob agree that there is no more transactions going between them, Alice invokes the `CloseChannel` function on `PayMerkle` smart contract by sending the latest values of `claimedValue, randomValue, proof`  (the proof for largest amount) to the smart contract which will verify it and release the payment to Alice.
