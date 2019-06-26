@@ -27,7 +27,7 @@ contract PayMerkleExtended {
         channelRecipient.transfer(_amount);
         selfdestruct(channelSender);
     }
-    function verifyMerkle (bytes32 root, bytes32 leaf, bytes32[] proof) public pure returns (bool) {
+    function verifyMerkle (bytes32 _root, bytes32 leaf, bytes32[] proof) public pure returns (bool) {
       bytes32 computedHash = leaf;
       for (uint256 i = 0; i < proof.length; i++) {
           if (computedHash < proof[i])
@@ -35,7 +35,7 @@ contract PayMerkleExtended {
           else
             computedHash = keccak256(proof[i], computedHash);
           }
-        return computedHash==root;
+        return computedHash==_root;
     }
     function ChannelTimeout() public {
         require(now >= startDate + channelTimeout);
