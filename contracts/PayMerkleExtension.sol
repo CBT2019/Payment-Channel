@@ -21,12 +21,13 @@ contract PayMerkleExtended {
       else
           root = keccak256(_newRoot, root);
     }
-  function CloseChannel(uint256 _amount, bytes32[] proof) public {
-        bytes32 computedHash = keccak256(_amount);
+  function CloseChannel(uint256 _amount, uint256 _random, bytes32[] proof) public {
+        bytes32 computedHash = keccak256(_amount,_random);
         require(verifyMerkle(root, computedHash, proof));
         channelRecipient.transfer(_amount);
         selfdestruct(channelSender);
     }
+    
     function verifyMerkle (bytes32 _root, bytes32 leaf, bytes32[] proof) public pure returns (bool) {
       bytes32 computedHash = leaf;
       for (uint256 i = 0; i < proof.length; i++) {
