@@ -7,12 +7,19 @@ contract PayMerkleExtended {
     uint public channelTimeout;
     bytes32 public root;
 
-    function PayMerkle(address to, uint _timeout, bytes32 _root) payable public {
+    function PayMerkleExtended(address to, uint _timeout, bytes32 _root) public payable {
+        require(msg.value>0);
         channelRecipient = to;
         channelSender = msg.sender;
         startDate = now;
         channelTimeout = _timeout;
         root = _root;
+    }
+    function AddBalance(bytes32 _newRoot) public payable {
+      if (root < _newRoot)
+          root = keccak256(root, _newRoot);
+      else
+          root = keccak256(_newRoot, root);
     }
   function CloseChannel(uint256 _amount, uint256 _random, bytes32[] proof) public {
         require(msg.sender==channelRecipient);
@@ -28,15 +35,9 @@ contract PayMerkleExtended {
         channelRecipient.transfer(_amount);
         selfdestruct(channelSender);
     }
+    
     function ChannelTimeout() public {
         require(now >= startDate + channelTimeout);
         selfdestruct(channelSender);
     }
-    
-    function AddBalance(bytes32 _newRoot) public payable {
-      if (root < _newRoot)
-          root = keccak256(root, _newRoot);
-      else
-          root = keccak256(_newRoot, root);
-    }    
 }
